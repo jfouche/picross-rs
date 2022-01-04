@@ -1,3 +1,6 @@
+mod game;
+
+
 fn main() {
-    println!("Hello, world!");
+    let _ = game::Game::from_image("test/4x4-square");
 }
