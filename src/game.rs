@@ -3,8 +3,7 @@ use std::fmt;
 use std::fmt::Display;
 use std::path::Path;
 
-use image::ImageBuffer;
-use image::{io::Reader as ImageReader, DynamicImage, DynamicImage::*, GenericImageView};
+use image::{Rgb, io::Reader as ImageReader, DynamicImage, RgbImage, GenericImageView};
 
 #[derive(Debug)]
 pub struct Game {
@@ -12,6 +11,7 @@ pub struct Game {
     pub height: u32,
     pub rows: Vec<Vec<Clue>>,
     pub cols: Vec<Vec<Clue>>,
+    img: RgbImage
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -27,8 +27,39 @@ impl Display for Clue {
 }
 
 impl Clue {
-    fn new(color: image::Rgb<u8>, count: u32) -> Self {
+    fn new(color: Rgb<u8>, count: u32) -> Self {
         Clue { color, count }
+    }
+}
+
+pub struct Board {
+    img: RgbImage
+}
+
+impl Board {
+    pub fn get_pixel(&self, x: u32, y: u32) -> &Rgb<u8> {
+        self.img.get_pixel(x, y)
+    }
+
+    pub fn set_pixel(&mut self, x: u32, y: u32, pix: Rgb<u8>) {
+        self.img.put_pixel(x, y, pix);
+    }
+}
+
+impl Display for Board {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "vvvvvvvvvv")?;
+        for y in 0..self.img.height() {
+            for x in 0..self.img.width() {
+                let c = match self.get_pixel(x, y) {
+                    &WHITE => " ",
+                    _ => "X"
+                };
+                write!(f, "{}", c)?;
+            }
+            write!(f, "\n")?;
+        }
+        write!(f, "^^^^^^^^^^")
     }
 }
 
@@ -43,8 +74,6 @@ impl fmt::Display for GameError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &*self {
             GameError::IoError(e) => write!(f, "{}", e.to_string()),
-            // The wrapped error contains additional information and is available
-            // via the source() method.
             GameError::ImageError(e) => write!(f, "{}", e.to_string()),
             GameError::UnsupportedFormatError(img) => {
                 write!(f, "Unsupported image format : {:?}", img)
@@ -78,33 +107,36 @@ impl From<image::ImageError> for GameError {
     }
 }
 
+/// Result type for the picross game
 type Result<T> = std::result::Result<T, GameError>;
 
-const WHITE: image::Rgb<u8> = image::Rgb([0xFF, 0xFF, 0xFF]);
+pub const WHITE: Rgb<u8> = Rgb([0xFF, 0xFF, 0xFF]);
 
-fn is_white(p: &image::Rgb<u8>) -> bool {
+fn is_white(p: &Rgb<u8>) -> bool {
     return p[0] == WHITE[0] && p[1] == WHITE[1] && p[2] == WHITE[2];
 }
 
-struct Counter {
-    image: ImageBuffer<image::Rgb<u8>, Vec<u8>>,
+struct Counter<'a> {
+    image: &'a RgbImage,
     counter: u32,
-    current_color: image::Rgb<u8>,
+    current_color: Rgb<u8>,
 }
 
 ///
-impl Counter {
-    fn new(image: ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Self {
+impl<'a> Counter<'a> {
+    fn new(image: &'a RgbImage) -> Self {
         Counter {
             image,
             counter: 0,
             current_color: WHITE,
         }
     }
+
     fn reset(&mut self) {
         self.counter = 0;
         self.current_color = WHITE;
     }
+
     fn next(&mut self, x: u32, y: u32) -> Option<Clue> {
         let pix = self.image.get_pixel(x, y);
         if is_white(&pix) {
@@ -150,15 +182,13 @@ impl Game {
     {
         println!("Game::from_image");
         let img = ImageReader::open(filename)?.decode()?;
+        let imgbuffer = match img.as_rgb8() {
+            Some(i) => i,
+            None => return Err(GameError::UnsupportedFormatError(img))
+        };
+
         let width = img.width();
         let height = img.height();
-
-        let imgbuffer = match img {
-            ImageRgb8(i) => i,
-            _ => {
-                return Err(GameError::UnsupportedFormatError(img));
-            }
-        };
 
         let mut counter = Counter::new(imgbuffer);
 
@@ -205,7 +235,33 @@ impl Game {
             height,
             rows,
             cols,
+            img: imgbuffer.clone()
         })
+    }
+
+    pub fn new_board(&self) -> Board {
+        let mut img = self.img.clone();
+        for pix in img.pixels_mut() {
+            *pix = WHITE;
+        }
+        Board { img }
+    }
+
+    pub fn is_finished(&self, board: &Board) -> bool {
+        board.eq(self)
+    }
+}
+
+impl PartialEq<Game> for Board {
+    fn eq(&self, other: &Game) -> bool {
+        for y in 0..self.img.width(){
+            for x in 0..self.img.height() {
+                if !self.get_pixel(x, y).eq(other.img.get_pixel(x, y)) {
+                    return false;
+                }
+            }
+        }
+        return true
     }
 }
 
@@ -213,7 +269,7 @@ impl Game {
 mod tests {
     use super::*;
 
-    const BLACK: image::Rgb<u8> = image::Rgb([0x0, 0x0, 0x0]);
+    const BLACK: Rgb<u8> = Rgb([0x0, 0x0, 0x0]);
 
     #[test]
     fn it_creates_game_from_image() {
