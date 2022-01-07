@@ -4,6 +4,7 @@ mod game;
 mod picross_image;
 mod board;
 mod solver;
+mod window;
 
 use game::Game;
 use solver::SolverBuilder;
@@ -17,13 +18,14 @@ fn main() {
         Some(filename) => {
             match Game::new(filename) {
                 Err(e) => eprintln!("Error initializing game : {:?}", e),
-                Ok(mut game) => {
-                    if play(&mut game) {
-                        println!("YOU WIN")
-                    } 
-                    else {
-                        println!("NOT FINISHED")
-                    }
+                Ok(game) => {
+                    window::show(game);
+                    // if play(&mut game) {
+                    //     println!("YOU WIN")
+                    // } 
+                    // else {
+                    //     println!("NOT FINISHED")
+                    // }
                 }
             }
         },

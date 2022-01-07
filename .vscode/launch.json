@@ -4,12 +4,13 @@
     // Pour plus d'informations, visitez : https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "(Windows) Launch",
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceRoot}/target/debug/picross-rs.exe",
-            "args": [],
+            "args": ["test/4x4-shuriken.png"],
             "stopAtEntry": false,
             "cwd": "${workspaceRoot}",
             "environment": [],
