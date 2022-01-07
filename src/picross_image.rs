@@ -37,51 +37,51 @@ impl Clue {
 
 
 #[derive(Debug)]
-pub enum GameError {
+pub enum ImageError {
     IoError(std::io::Error),
     ImageError(image::ImageError),
     UnsupportedFormatError(DynamicImage),
 }
 
-impl fmt::Display for GameError {
+impl fmt::Display for ImageError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &*self {
-            GameError::IoError(e) => write!(f, "{}", e.to_string()),
-            GameError::ImageError(e) => write!(f, "{}", e.to_string()),
-            GameError::UnsupportedFormatError(img) => {
+            ImageError::IoError(e) => write!(f, "{}", e.to_string()),
+            ImageError::ImageError(e) => write!(f, "{}", e.to_string()),
+            ImageError::UnsupportedFormatError(img) => {
                 write!(f, "Unsupported image format : {:?}", img)
             }
         }
     }
 }
 
-impl error::Error for GameError {
+impl error::Error for ImageError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match &*self {
-            GameError::IoError(ref e) => Some(e),
+            ImageError::IoError(ref e) => Some(e),
             // The cause is the underlying implementation error type. Is implicitly
             // cast to the trait object `&error::Error`. This works because the
             // underlying type already implements the `Error` trait.
-            GameError::ImageError(ref e) => Some(e),
-            GameError::UnsupportedFormatError(_) => None,
+            ImageError::ImageError(ref e) => Some(e),
+            ImageError::UnsupportedFormatError(_) => None,
         }
     }
 }
 
-impl From<std::io::Error> for GameError {
-    fn from(err: std::io::Error) -> GameError {
-        GameError::IoError(err)
+impl From<std::io::Error> for ImageError {
+    fn from(err: std::io::Error) -> ImageError {
+        ImageError::IoError(err)
     }
 }
 
-impl From<image::ImageError> for GameError {
-    fn from(err: image::ImageError) -> GameError {
-        GameError::ImageError(err)
+impl From<image::ImageError> for ImageError {
+    fn from(err: image::ImageError) -> ImageError {
+        ImageError::ImageError(err)
     }
 }
 
 /// Result type for the picross game
-type Result<T> = std::result::Result<T, GameError>;
+type Result<T> = std::result::Result<T, ImageError>;
 
 pub const WHITE: Rgb<u8> = Rgb([0xFF, 0xFF, 0xFF]);
 
@@ -153,11 +153,10 @@ impl Image {
     where
         P: AsRef<Path>,
     {
-        println!("Game::from_image");
         let img = ImageReader::open(filename)?.decode()?;
         let imgbuffer = match img.as_rgb8() {
             Some(i) => i,
-            None => return Err(GameError::UnsupportedFormatError(img))
+            None => return Err(ImageError::UnsupportedFormatError(img))
         };
 
         let width = img.width();
@@ -210,18 +209,6 @@ impl Image {
             cols,
             img: imgbuffer.clone()
         })
-    }
-
-    pub fn new_board(&self) -> Board {
-        let mut img = self.img.clone();
-        for pix in img.pixels_mut() {
-            *pix = WHITE;
-        }
-        Board::new(img.width() as usize, img.height()as usize)
-    }
-
-    pub fn is_finished(&self, board: &Board) -> bool {
-        board.eq(self)
     }
 }
 

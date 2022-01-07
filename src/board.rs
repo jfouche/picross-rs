@@ -5,7 +5,7 @@ use image::Rgb;
 use crate::picross_image::WHITE;
 
 
-#[derive(Clone, Eq, PartialEq, Copy)]
+#[derive(Clone, Eq, PartialEq, Copy, Debug)]
 pub enum Pixel {
     Color(Rgb<u8>),
     Cross
