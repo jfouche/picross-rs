@@ -1,4 +1,4 @@
-use crate::{board::Pixel, picross_image::WHITE, game::Game};
+use crate::{board::{Pixel, Board}, picross_image::{WHITE, Clue, Image}, game::Game};
 
 pub trait SolverAlgo {
     fn solve(&self, game: &mut Game) -> bool;
@@ -50,44 +50,9 @@ impl SolverAlgo for FullRow {
         let image = &game.image;
         let board = &mut game.board;
         for (y, row) in image.rows.iter().enumerate() {
-            let mut current_color = WHITE;
-            let mut counter = 0;
-            for clue in row {
-                if clue.color.eq(&current_color) {
-                    counter += 1;
-                }
-                counter += clue.count;
-                current_color = clue.color;
-            }
-            if counter == image.width {
-                // a full line is available
-                let mut current_color = WHITE;
-                let mut x = 0;
-                let mut modified = false;
-                for clue in row {
-                    if clue.color.eq(&current_color) {
-                        board.set_pixel(x, y, &Pixel::Cross);
-                        x += 1;
-                    }
-                    for _ in 0..clue.count {
-                        match board.get_pixel(x, y) {
-                            Pixel::Color(color) => {
-                                if color.eq(&WHITE) {
-                                    modified = true;
-                                }
-                            }
-                            Pixel::Cross => {
-                                modified = true;
-                            }
-                        }
-                        board.set_pixel(x, y, &Pixel::Color(clue.color));
-                        x += 1;
-                    }
-                    current_color = clue.color;
-                }
-                if modified {
-                    return true;
-                }
+            let mut line = Row::new(image, board, y);
+            if solve_line(&mut line, row) {
+                return true
             }
         }
         false
@@ -99,49 +64,126 @@ impl SolverAlgo for FullCol {
         let image = &game.image;
         let board = &mut game.board;
         for (x, col) in image.cols.iter().enumerate() {
-            let mut current_color = WHITE;
-            let mut counter = 0;
-            for clue in col {
-                if clue.color.eq(&current_color) {
-                    counter += 1;
-                }
-                counter += clue.count;
-                current_color = clue.color;
-            }
-            if counter == image.height {
-                // a full line is available
-                let mut current_color = WHITE;
-                let mut y = 0;
-                let mut modified = false;
-                for clue in col {
-                    if clue.color.eq(&current_color) {
-                        board.set_pixel(x, y, &Pixel::Cross);
-                        y += 1;
-                    }
-                    for _ in 0..clue.count {
-                        match board.get_pixel(x, y) {
-                            Pixel::Color(color) => {
-                                if color.eq(&WHITE) {
-                                    modified = true;
-                                }
-                            }
-                            Pixel::Cross => {
-                                modified = true;
-                            }
-                        }
-                        board.set_pixel(x, y, &Pixel::Color(clue.color));                        y += 1;
-                    }
-                    current_color = clue.color;
-                }
-                if modified {
-                    return true;
-                }
+            let mut line = Col::new(image, board, x);
+            if solve_line(&mut line, col) {
+                return true
             }
         }
         false
     }
 }
 
+trait Line {
+    fn size(&self) -> usize;
+    fn get_pixel(&self, index: usize) -> &Pixel;
+    fn set_pixel(&mut self, index: usize, pixel: Pixel);
+}
+
+struct Row<'a> {
+    image: &'a Image,
+    board: &'a mut Board,
+    nb_rows: usize
+}
+
+impl<'a> Row<'a> {
+    fn new(image: &'a Image, board: &'a mut Board, nb_rows: usize) -> Self {
+        Row {
+            image, 
+            board,
+            nb_rows
+        }
+    }
+}
+
+impl<'a> Line for Row<'a> {
+    fn size(&self) -> usize{
+        self.image.width as usize
+    }
+
+    fn get_pixel(&self, index: usize) -> &Pixel {
+        &self.board.get_pixel(index, self.nb_rows)
+    }
+
+    fn set_pixel(&mut self, index: usize, pixel: Pixel) {
+        self.board.set_pixel(index, self.nb_rows, &pixel);
+    }
+}
+
+struct Col<'a> {
+    image: &'a Image,
+    board: &'a mut Board,
+    nb_cols: usize
+}
+
+impl<'a> Col<'a> {
+    fn new(image: &'a Image, board: &'a mut Board, nb_cols: usize) -> Self {
+        Col {
+            image, 
+            board,
+            nb_cols
+        }
+    }
+}
+
+impl<'a> Line for Col<'a> {
+    fn size(&self) -> usize{
+        self.image.height as usize
+    }
+
+    fn get_pixel(&self, index: usize) -> &Pixel {
+        &self.board.get_pixel(self.nb_cols, index)
+    }
+
+    fn set_pixel(&mut self, index: usize, pixel: Pixel) {
+        self.board.set_pixel(self.nb_cols, index, &pixel);
+    }
+}
+
+fn solve_line(line: &mut dyn Line, clues: &Vec<Clue>) -> bool {
+        let mut current_color = WHITE;
+        let mut counter = 0 as usize;
+
+        // count how many pixel are there can be if they are all collapsed
+        for clue in clues {
+            if clue.color.eq(&current_color) {
+                counter += 1;
+            }
+            counter += clue.count as usize;
+            current_color = clue.color;
+        }
+        
+        if counter == line.size() {
+            // a full line is available
+            let mut current_color = WHITE;
+            let mut index = 0;
+            let mut modified = false;
+            for clue in clues {
+                if clue.color.eq(&current_color) {
+                    line.set_pixel(index, Pixel::Cross);
+                    index += 1;
+                }
+                for _ in 0..clue.count {
+                    match line.get_pixel(index) {
+                        Pixel::Color(color) => {
+                            if color.eq(&WHITE) {
+                                modified = true;
+                            }
+                        }
+                        Pixel::Cross => {
+                            modified = true;
+                        }
+                    }
+                    line.set_pixel(index, Pixel::Color(clue.color));
+                    index += 1;
+                }
+                current_color = clue.color;
+            }
+            if modified {
+                return true;
+            }
+        }
+    false
+}
 
 #[cfg(test)]
 mod tests {
@@ -198,9 +240,9 @@ mod tests {
         assert_eq!(game.board.get_pixel(0, 2), &BLACK);
         assert_eq!(game.board.get_pixel(0, 3), &BLACK);
 
-        assert_eq!(game.board.get_pixel(3, 3), &BLACK);
         assert_eq!(game.board.get_pixel(3, 0), &BLACK);
-        assert_eq!(game.board.get_pixel(3, 0), &Pixel::Cross);
+        assert_eq!(game.board.get_pixel(3, 1), &BLACK);
+        assert_eq!(game.board.get_pixel(3, 2), &Pixel::Cross);
         assert_eq!(game.board.get_pixel(3, 3), &BLACK);
     }
 }
