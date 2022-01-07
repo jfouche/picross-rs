@@ -1,15 +1,19 @@
 use std::env;
 
-use game::Image;
-use solver::{FullRow, SolverBuilder, FullCol};
-
 mod game;
+mod picross_image;
+mod board;
 mod solver;
+
+use picross_image::Image;
+use solver::{FullRow, SolverBuilder, FullCol};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    println!("{:?}", args);
     match args.get(1) {
+        None => {
+            println!("usage : picross <filename>")
+        }
         Some(filename) => {
             match Image::from_image(filename) {
                 Err(e) => eprintln!("{:?}", e),
@@ -23,12 +27,7 @@ fn main() {
                 }
             }
         },
-        None => {
-            println!("usage : picross <filename>")
-        }
     }
-    
-
 }
 
 fn play(game: &Image) -> bool {

@@ -1,4 +1,4 @@
-use crate::game::{Board, Image, Pixel, WHITE};
+use crate::{Image, board::{Board, Pixel}, picross_image::WHITE};
 
 pub trait SolverAlgo {
     fn solve(&self, game: &Image, board: &mut Board) -> bool;
