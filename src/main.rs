@@ -16,7 +16,7 @@ fn main() {
         }
         Some(filename) => {
             match Game::new(filename) {
-                Err(e) => eprintln!("{:?}", e),
+                Err(e) => eprintln!("Error initializing game : {:?}", e),
                 Ok(mut game) => {
                     if play(&mut game) {
                         println!("YOU WIN")
