@@ -5,8 +5,9 @@ use std::path::Path;
 
 use image::{Rgb, io::Reader as ImageReader, DynamicImage, RgbImage, GenericImageView};
 
+
 #[derive(Debug)]
-pub struct Game {
+pub struct Image {
     pub width: u32,
     pub height: u32,
     pub rows: Vec<Vec<Clue>>,
@@ -32,34 +33,69 @@ impl Clue {
     }
 }
 
+#[derive(Clone, Eq, PartialEq, Copy)]
+pub enum Pixel {
+    Color(Rgb<u8>),
+    Cross
+}
+
 pub struct Board {
-    img: RgbImage
+    img: Vec<Pixel>,
+    width:usize,
+    height:usize
 }
 
 impl Board {
-    pub fn get_pixel(&self, x: u32, y: u32) -> &Rgb<u8> {
-        self.img.get_pixel(x, y)
+    pub fn new(width: usize, height: usize) -> Self {
+        Board {
+            img: vec![Pixel::Color(WHITE); width*height],
+            width,
+            height
+        }
     }
 
-    pub fn set_pixel(&mut self, x: u32, y: u32, pix: Rgb<u8>) {
-        self.img.put_pixel(x, y, pix);
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
+    }
+
+    pub fn get_pixel(&self, x: usize, y: usize) -> &Pixel {
+        self.img.get(x + y * self.width).unwrap()
+    }
+
+    pub fn set_pixel(&mut self, x: usize, y: usize, pix: &Pixel) {
+        match self.img.get_mut(x + y * self.width) {
+            Some(p) => *p = *pix,
+            None => {}
+        }
     }
 }
 
 impl Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "vvvvvvvvvv")?;
-        for y in 0..self.img.height() {
-            for x in 0..self.img.width() {
+        writeln!(f, "=======================")?;
+        for y in 0..self.height() {
+            for x in 0..self.width() {
                 let c = match self.get_pixel(x, y) {
-                    &WHITE => " ",
-                    _ => "X"
+                    Pixel::Color(color) => {
+                        match color {
+                            &WHITE => " ",
+                            _ => "█"
+
+                        }
+                    },
+                    Pixel::Cross => {
+                        "X"
+                    }
                 };
                 write!(f, "{}", c)?;
             }
             write!(f, "\n")?;
         }
-        write!(f, "^^^^^^^^^^")
+        write!(f, "=======================")
     }
 }
 
@@ -175,7 +211,7 @@ impl<'a> Counter<'a> {
 }
 
 ///
-impl Game {
+impl Image {
     pub fn from_image<P>(filename: P) -> Result<Self>
     where
         P: AsRef<Path>,
@@ -230,7 +266,7 @@ impl Game {
             cols.push(v);
         }
 
-        Ok(Game {
+        Ok(Image {
             width,
             height,
             rows,
@@ -244,7 +280,7 @@ impl Game {
         for pix in img.pixels_mut() {
             *pix = WHITE;
         }
-        Board { img }
+        Board::new(img.width() as usize, img.height()as usize)
     }
 
     pub fn is_finished(&self, board: &Board) -> bool {
@@ -252,12 +288,22 @@ impl Game {
     }
 }
 
-impl PartialEq<Game> for Board {
-    fn eq(&self, other: &Game) -> bool {
-        for y in 0..self.img.width(){
-            for x in 0..self.img.height() {
-                if !self.get_pixel(x, y).eq(other.img.get_pixel(x, y)) {
-                    return false;
+impl PartialEq<Image> for Board {
+    fn eq(&self, other: &Image) -> bool {
+        for y in 0..self.width(){
+            for x in 0..self.height() {
+                let color = other.img.get_pixel(x as u32, y as u32);
+                match self.get_pixel(x, y) {
+                    Pixel::Color(c) => {
+                        if !color.eq(c) {
+                            return false;
+                        }
+                    }
+                    Pixel::Cross => {
+                        if !color.eq(&WHITE) {
+                            return false;
+                        }
+                    }
                 }
             }
         }
@@ -273,7 +319,7 @@ mod tests {
 
     #[test]
     fn it_creates_game_from_image() {
-        let game_res = Game::from_image("test/4x4-c.png");
+        let game_res = Image::from_image("test/4x4-c.png");
         assert!(&game_res.is_ok());
         let game = game_res.unwrap();
 
