@@ -1,13 +1,9 @@
 use std::env;
 
-mod game;
-mod picross_image;
-mod board;
-mod solver;
 mod window;
 
-use game::Game;
-use solver::SolverBuilder;
+use picross_rs::game::Game;
+use picross_rs::solver::SolverBuilder;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

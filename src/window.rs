@@ -7,11 +7,11 @@ use piston::event_loop::{EventSettings, Events};
 use piston::window::WindowSettings;
 use piston::input::*;
 
-use crate::game::Game;
+use picross_rs::game::Game;
 
 pub fn show(game: Game) {
     let opengl = OpenGL::V3_2;
-    let mut window: Window = WindowSettings::new("spinning-square", [200, 200])
+    let mut window: Window = WindowSettings::new("Picross - Rust", [200, 200])
         .graphics_api(opengl)
         .exit_on_esc(true)
         .build()
