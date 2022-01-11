@@ -2,8 +2,8 @@ use std::env;
 
 //mod window;
 
-use picross_rs::game::Game;
-use picross_rs::solver::SolverBuilder;
+use picross_rs::Game;
+use picross_rs::SolverBuilder;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
