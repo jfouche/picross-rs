@@ -13,7 +13,7 @@ fn main() {
         }
         Some(filename) => {
             match Game::new(filename) {
-                Err(e) => eprintln!("Error initializing game : {:?}", e),
+                Err(e) => eprintln!("Error initializing game \"{}\"\n{}", filename, e),
                 Ok(mut game) => {
                     //window::show(game);
                     if play(&mut game) {
