@@ -1,6 +1,6 @@
 use std::env;
 
-mod window;
+//mod window;
 
 use picross_rs::game::Game;
 use picross_rs::solver::SolverBuilder;
@@ -14,14 +14,14 @@ fn main() {
         Some(filename) => {
             match Game::new(filename) {
                 Err(e) => eprintln!("Error initializing game : {:?}", e),
-                Ok(game) => {
-                    window::show(game);
-                    // if play(&mut game) {
-                    //     println!("YOU WIN")
-                    // } 
-                    // else {
-                    //     println!("NOT FINISHED")
-                    // }
+                Ok(mut game) => {
+                    //window::show(game);
+                    if play(&mut game) {
+                        println!("YOU WIN")
+                    } 
+                    else {
+                        println!("NOT FINISHED")
+                    }
                 }
             }
         },

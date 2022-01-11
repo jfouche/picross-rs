@@ -109,7 +109,7 @@ impl App {
 
     pub fn on_button_press(&mut self, button: &Button) {
         match button {
-            &Button::Keyboard(key) => {
+            &Button::Keyboard(_key) => {
                 // self.on_key_down(&key);
             },
             &Button::Mouse(button) => {
