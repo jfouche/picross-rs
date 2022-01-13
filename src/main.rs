@@ -31,7 +31,9 @@ fn main() {
 fn play(game: &mut Game) -> bool {
     let solver = SolverBuilder::new().build();
     while !game.is_finished() {
-        if solver.solve(game) == false {
+        if let Some(proposition) = solver.solve(game) {
+            proposition.merge(&mut game.board);
+        } else {
             return false;
         }
         println!("BOARD");

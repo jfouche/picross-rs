@@ -216,15 +216,15 @@ impl PartialEq<Image> for Board {
     fn eq(&self, other: &Image) -> bool {
         for y in 0..self.width(){
             for x in 0..self.height() {
-                let color = other.img.get_pixel(x as u32, y as u32);
+                let img_color = other.img.get_pixel(x as u32, y as u32);
                 match self.get_pixel(x, y) {
-                    Pixel::Color(c) => {
-                        if !color.eq(c) {
+                    Pixel::Color(board_color) => {
+                        if !img_color.eq(board_color) {
                             return false;
                         }
                     }
                     Pixel::Cross => {
-                        if !color.eq(&WHITE) {
+                        if !img_color.eq(&WHITE) {
                             return false;
                         }
                     }

@@ -1,159 +1,65 @@
-use crate::board::{Board, Pixel};
+use crate::board::{Pixel};
 use crate::game::Game;
-use crate::picross_image::{Clue, Image, WHITE};
+use crate::picross_image::{WHITE};
 
-use super::SolverAlgo;
+use super::{GameLine, Proposition, SolverAlgo};
 
-pub struct FullRow;
+pub struct FullLine;
 
-pub struct FullCol;
-
-impl SolverAlgo for FullRow {
-    fn solve(&self, game: &mut Game) -> bool {
-        let image = &game.image;
-        let board = &mut game.board;
-        for (y, row) in image.rows.iter().enumerate() {
-            let mut line = row::Row::new(image, board, y);
-            if solve_line(&mut line, row) {
-                return true;
-            }
-        }
+impl SolverAlgo for FullLine {
+    fn solve(&self, _game: &mut Game) -> bool {
         false
     }
-}
 
-impl SolverAlgo for FullCol {
-    fn solve(&self, game: &mut Game) -> bool {
-        let image = &game.image;
-        let board = &mut game.board;
-        for (x, col) in image.cols.iter().enumerate() {
-            let mut line = col::Col::new(image, board, x);
-            if solve_line(&mut line, col) {
-                return true;
+    fn get_proposition(&self, game_line: &GameLine) -> Option<super::Proposition> {
+        let mut current_color = WHITE;
+        let mut counter = 0 as usize;
+
+        // count how many pixel are there can be if they are all collapsed
+        for clue in game_line.clues {
+            if clue.color.eq(&current_color) {
+                counter += 1;
             }
+            counter += clue.count as usize;
+            current_color = clue.color;
         }
-        false
-    }
-}
 
-trait Line {
-    fn size(&self) -> usize;
-    fn get_pixel(&self, index: usize) -> &Pixel;
-    fn set_pixel(&mut self, index: usize, pixel: Pixel);
-}
-
-fn solve_line(line: &mut dyn Line, clues: &Vec<Clue>) -> bool {
-    let mut current_color = WHITE;
-    let mut counter = 0 as usize;
-
-    // count how many pixel are there can be if they are all collapsed
-    for clue in clues {
-        if clue.color.eq(&current_color) {
-            counter += 1;
+        if counter != game_line.board_line.len() {
+            return None;
         }
-        counter += clue.count as usize;
-        current_color = clue.color;
-    }
 
-    if counter == line.size() {
         // a full line is available
         let mut current_color = WHITE;
         let mut index = 0;
-        let mut modified = false;
-        for clue in clues {
+        let mut proposition = vec![Some(Pixel::Cross); game_line.board_line.len()];
+        let mut changes = false;
+        for clue in game_line.clues {
             if clue.color.eq(&current_color) {
-                line.set_pixel(index, Pixel::Cross);
+                // 2 consecutive colors, allow a space between them
                 index += 1;
             }
             for _ in 0..clue.count {
-                match line.get_pixel(index) {
-                    Pixel::Color(color) => {
-                        if color.eq(&WHITE) {
-                            modified = true;
-                        }
-                    }
-                    Pixel::Cross => {
-                        modified = true;
+                // Check if the board already contains this color
+                let board_pixel = game_line.board_line[index];
+                if let Pixel::Color(color) = board_pixel {
+                    if !color.eq(&clue.color) {
+                        changes = true;
                     }
                 }
-                line.set_pixel(index, Pixel::Color(clue.color));
+                // Add the color
+                proposition[index] = Some(Pixel::Color(clue.color));
                 index += 1;
             }
             current_color = clue.color;
         }
-        if modified {
-            return true;
-        }
-    }
-    false
-}
-
-mod row {
-    use super::Line;
-    use super::{Board, Image, Pixel};
-
-    pub struct Row<'a> {
-        image: &'a Image,
-        board: &'a mut Board,
-        nb_rows: usize,
-    }
-
-    impl<'a> Row<'a> {
-        pub fn new(image: &'a Image, board: &'a mut Board, nb_rows: usize) -> Self {
-            Row {
-                image,
-                board,
-                nb_rows,
-            }
-        }
-    }
-
-    impl<'a> Line for Row<'a> {
-        fn size(&self) -> usize {
-            self.image.width as usize
-        }
-
-        fn get_pixel(&self, index: usize) -> &Pixel {
-            &self.board.get_pixel(index, self.nb_rows)
-        }
-
-        fn set_pixel(&mut self, index: usize, pixel: Pixel) {
-            self.board.set_pixel(index, self.nb_rows, &pixel);
-        }
-    }
-}
-
-mod col {
-    use super::Line;
-    use super::{Board, Image, Pixel};
-
-    pub struct Col<'a> {
-        image: &'a Image,
-        board: &'a mut Board,
-        nb_cols: usize,
-    }
-
-    impl<'a> Col<'a> {
-        pub fn new(image: &'a Image, board: &'a mut Board, nb_cols: usize) -> Self {
-            Col {
-                image,
-                board,
-                nb_cols,
-            }
-        }
-    }
-
-    impl<'a> Line for Col<'a> {
-        fn size(&self) -> usize {
-            self.image.height as usize
-        }
-
-        fn get_pixel(&self, index: usize) -> &Pixel {
-            &self.board.get_pixel(self.nb_cols, index)
-        }
-
-        fn set_pixel(&mut self, index: usize, pixel: Pixel) {
-            self.board.set_pixel(self.nb_cols, index, &pixel);
+        if changes {
+            Some(Proposition {
+                view: game_line.view,
+                line: proposition,
+                index: game_line.index,
+            })
+        } else {
+            None
         }
     }
 }
@@ -162,11 +68,34 @@ mod col {
 mod tests {
     use image::Rgb;
 
-    use crate::solver::Solver;
+    use crate::solver::{Solver, GameView};
 
     use super::*;
 
     const BLACK: Pixel = Pixel::Color(Rgb([0, 0, 0]));
+
+    fn proposition_as_str(proposition: &Proposition) -> String {
+        let mut str = String::new();
+        for p in &proposition.line {
+            match p {
+                Some(Pixel::Cross) => {
+                    str.push('X');
+                },
+                Some(Pixel::Color(color)) => {
+                    if color.eq(&WHITE) {
+                        str.push(' ');
+                    }
+                    else {
+                        str.push('█');
+                    }
+                },
+                None => {
+                    str.push(' ');
+                }
+            }
+        }
+        str
+    }
 
     #[test]
     fn it_solves_full_lines() {
@@ -174,50 +103,68 @@ mod tests {
         assert!(&game_res.is_ok());
         let mut game = game_res.unwrap();
         let solver = Solver {
-            algos: vec![Box::new(FullRow {})],
+            algos: vec![Box::new(FullLine {})],
         };
-        assert!(solver.solve(&mut game));
-        assert!(solver.solve(&mut game));
 
-        // ██X█
-        //
-        //
-        // █X██
+        // Should return the 1st row
+        let proposition = solver.solve(&mut game);
+        assert!(proposition.is_some());
+        let proposition = proposition.unwrap();
+        assert_eq!(proposition.view, GameView::Row);
+        assert_eq!(proposition.index, 0);
+        assert_eq!(proposition_as_str(&proposition), "██X█");
 
-        assert_eq!(game.board.get_pixel(0, 0), &BLACK);
-        assert_eq!(game.board.get_pixel(1, 0), &BLACK);
-        assert_eq!(game.board.get_pixel(2, 0), &Pixel::Cross);
-        assert_eq!(game.board.get_pixel(3, 0), &BLACK);
+        // partialy fill the 1st row
+        game.board.set_pixel(0, 0, &BLACK);
+        game.board.set_pixel(1, 0, &BLACK);
 
-        assert_eq!(game.board.get_pixel(0, 3), &BLACK);
-        assert_eq!(game.board.get_pixel(1, 3), &Pixel::Cross);
-        assert_eq!(game.board.get_pixel(2, 3), &BLACK);
-        assert_eq!(game.board.get_pixel(3, 3), &BLACK);
-    }
+        // Should return the 1st row
+        let proposition = solver.solve(&mut game);
+        assert!(proposition.is_some());
+        let proposition = proposition.unwrap();
+        assert_eq!(proposition.view, GameView::Row);
+        assert_eq!(proposition.index, 0);
+        assert_eq!(proposition_as_str(&proposition), "██X█");
 
-    #[test]
-    fn it_solves_full_cols() {
-        let game_res = Game::new("test/4x4-shuriken.png");
-        assert!(&game_res.is_ok());
-        let mut game = game_res.unwrap();
-        let solver = Solver {
-            algos: vec![Box::new(FullCol {})],
-        };
-        assert!(solver.solve(&mut game));
-        assert!(solver.solve(&mut game));
+        // finish filling the 1st row
+        game.board.set_pixel(3, 0, &BLACK);
 
-        // █  █
-        // X  █
-        // █  X
-        // █  █
-        assert_eq!(game.board.get_pixel(0, 0), &BLACK);
-        assert_eq!(game.board.get_pixel(0, 1), &Pixel::Cross);
-        assert_eq!(game.board.get_pixel(0, 2), &BLACK);
-        assert_eq!(game.board.get_pixel(0, 3), &BLACK);
+        // Should return the 2nd row
+        let proposition = solver.solve(&mut game);
+        assert!(proposition.is_some());
+        let proposition = proposition.unwrap();
+        assert_eq!(proposition.view, GameView::Row);
+        assert_eq!(proposition.index, 3);
+        assert_eq!(proposition_as_str(&proposition), "█X██");
+        
+        // Fill the last row
+        game.board.set_pixel(0, 3, &BLACK);
+        game.board.set_pixel(2, 3, &BLACK);
+        game.board.set_pixel(3, 3, &BLACK);
 
-        assert_eq!(game.board.get_pixel(3, 0), &BLACK);
-        assert_eq!(game.board.get_pixel(3, 1), &BLACK);
-        assert_eq!(game.board.get_pixel(3, 2), &Pixel::Cross);
-        assert_eq!(game.board.get_pixel(3, 3), &BLACK);
+        // Should return the 1st col
+        let proposition = solver.solve(&mut game);
+        assert!(proposition.is_some());
+        let proposition = proposition.unwrap();
+        assert_eq!(proposition.view, GameView::Column);
+        assert_eq!(proposition.index, 0);
+        assert_eq!(proposition_as_str(&proposition), "█X██");
+
+        // Fill de first col
+        game.board.set_pixel(0, 2, &BLACK);
+
+        // Should return the last col
+        let proposition = solver.solve(&mut game);
+        assert!(proposition.is_some());
+        let proposition = proposition.unwrap();
+        assert_eq!(proposition.view, GameView::Column);
+        assert_eq!(proposition.index, 3);
+        assert_eq!(proposition_as_str(&proposition), "██X█");
+
+        // Fill de last col
+        game.board.set_pixel(3, 1, &BLACK);
+
+        // No more proposition
+        assert!(solver.solve(&mut game).is_none());
     }
 }
